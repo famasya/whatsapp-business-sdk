@@ -1,3 +1,10 @@
+# [1.1.0](https://github.com/famasya/whatsapp-business-sdk/compare/v1.0.0...v1.1.0) (2025-07-05)
+
+
+### Features
+
+* export webhook type ([0d69bdb](https://github.com/famasya/whatsapp-business-sdk/commit/0d69bdb458af1bf8b11a4836f5f575e2b4f2566f))
+
 # 1.0.0 (2025-07-05)
 
 
