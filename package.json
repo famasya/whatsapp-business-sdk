@@ -34,7 +34,9 @@
 		"url": "https://github.com/famasya/whatsapp-business-sdk/issues",
 		"email": "contact@abidf.com"
 	},
-	"dependencies": {},
+	"dependencies": {
+		"whatsapp-business-serverless": "^1.1.0"
+	},
 	"devDependencies": {
 		"@commitlint/cli": "^17.6.6",
 		"@commitlint/config-conventional": "^17.6.6",
