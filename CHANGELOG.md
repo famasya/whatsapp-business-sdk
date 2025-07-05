@@ -1,3 +1,10 @@
+## [1.1.1](https://github.com/famasya/whatsapp-business-sdk/compare/v1.1.0...v1.1.1) (2025-07-05)
+
+
+### Bug Fixes
+
+* security update ([ec6ad94](https://github.com/famasya/whatsapp-business-sdk/commit/ec6ad943659a62d5045302003a489486fda894c3))
+
 # [1.1.0](https://github.com/famasya/whatsapp-business-sdk/compare/v1.0.0...v1.1.0) (2025-07-05)
 
 
