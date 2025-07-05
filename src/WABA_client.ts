@@ -1,27 +1,26 @@
-import fs from "fs";
-import FormData from "form-data";
+// Removed fs and form-data imports for Cloudflare Workers compatibility
 import {
-	Message,
-	SendMessageResponse,
-	GetBusinessPhoneNumberResponse,
-	RequestPhoneNumberVerificationCodeArgs,
-	RequestPhoneNumberVerificationCodePayload,
-	VerifyPhoneNumberArgs,
-	RegisterPhoneArgs,
-	RegisterPhonePayload,
-	SetUpTwoFactorAuthArgs,
-	DefaultResponse,
+	BusinessPhoneNumber,
 	BusinessProfile,
 	BusinessProfileFields,
 	BusinessProfileFieldsQuery,
-	UpdateBusinessProfilePayload,
+	DefaultResponse,
+	GetBusinessPhoneNumberResponse,
 	GetMediaResponse,
+	HealthStatusResponse,
+	MarkMessageAsReadPayload,
+	Message,
+	RegisterPhoneArgs,
+	RegisterPhonePayload,
+	RequestPhoneNumberVerificationCodeArgs,
+	RequestPhoneNumberVerificationCodePayload,
+	SendMessageResponse,
+	SetUpTwoFactorAuthArgs,
+	UpdateBusinessProfilePayload,
+	UpdateIdentityCheckState,
 	UploadMediaPayload,
 	UploadMediaResponse,
-	MarkMessageAsReadPayload,
-	BusinessPhoneNumber,
-	UpdateIdentityCheckState,
-	HealthStatusResponse,
+	VerifyPhoneNumberArgs,
 } from "./types";
 import { WABAErrorHandler } from "./utils/errorHandler";
 import { createRestClient } from "./utils/restClient";
@@ -90,19 +89,29 @@ export class WABAClient {
 	 * All media files sent through this endpoint are encrypted and persist for 30 days, unless they are deleted earlier.
 	 *
 	 * A successful response returns an object with the uploaded media's ID.
+	 *
+	 * @param file - File object (File API) or Blob for Cloudflare Workers compatibility
+	 * @param type - Media type (image, video, audio, document)
 	 */
-	uploadMedia({ file, type }: Omit<UploadMediaPayload, "messaging_product">) {
+	uploadMedia({ file, type }: { file: File | Blob; type: string }) {
 		const formData = new FormData();
 		formData.append("type", type);
-		formData.append("file", fs.createReadStream(file));
+		formData.append("file", file);
 		formData.append("messaging_product", "whatsapp");
 		return this.restClient.post<UploadMediaResponse, FormData>(
 			`${this.phoneId}/media`,
-			formData,
-			{
-				headers: { "Content-Type": "multipart/form-data" },
-			}
+			formData
 		);
+	}
+
+	/**
+	 * Upload media from a file path (Node.js environments only)
+	 * For Cloudflare Workers, use uploadMedia with File/Blob instead
+	 *
+	 * @deprecated Use uploadMedia with File/Blob for better compatibility
+	 */
+	uploadMediaFromPath({ file, type }: Omit<UploadMediaPayload, "messaging_product">) {
+		throw new Error("uploadMediaFromPath is not supported in Cloudflare Workers. Use uploadMedia with File/Blob instead.");
 	}
 	/**
 	 * Retrieves your media’s URL. Use the returned URL to download the media file. Note that clicking this URL (i.e. performing a generic GET) will not return the media; you must include an access token.
@@ -116,20 +125,69 @@ export class WABAClient {
 		return this.restClient.delete<DefaultResponse>(mediaId);
 	}
 	/**
-	 * @param mediaUrl your media’s URL
-	 * @param pathToSaveFile the path where you want to store the media
+	 * Download media and return as ArrayBuffer (Cloudflare Workers compatible)
+	 * @param mediaUrl your media's URL
+	 * @returns Promise<ArrayBuffer> - The media file as ArrayBuffer
 	 */
-	async downloadMedia(mediaUrl: string, pathToSaveFile: string) {
+	async downloadMedia(mediaUrl: string): Promise<ArrayBuffer> {
 		try {
 			const response = await this.restClient.get(
 				mediaUrl,
 				{},
 				{ baseURL: "", responseType: "stream" }
 			);
-			return response.pipe(fs.createWriteStream(pathToSaveFile));
+
+			// If response is already an ArrayBuffer, return it
+			if (response instanceof ArrayBuffer) {
+				return response;
+			}
+
+			// If response is a ReadableStream (from fetch), convert to ArrayBuffer
+			if (response && typeof response.getReader === 'function') {
+				const reader = response.getReader();
+				const chunks: Uint8Array[] = [];
+				let done = false;
+
+				while (!done) {
+					const { value, done: readerDone } = await reader.read();
+					done = readerDone;
+					if (value) {
+						chunks.push(value);
+					}
+				}
+
+				// Combine chunks into single ArrayBuffer
+				const totalLength = chunks.reduce((acc, chunk) => acc + chunk.length, 0);
+				const result = new Uint8Array(totalLength);
+				let offset = 0;
+				for (const chunk of chunks) {
+					result.set(chunk, offset);
+					offset += chunk.length;
+				}
+
+				return result.buffer;
+			}
+
+			// Fallback: try to convert response to ArrayBuffer
+			if (typeof response === 'string') {
+				const encoder = new TextEncoder();
+				return encoder.encode(response).buffer;
+			}
+
+			throw new Error('Unexpected response type for media download');
 		} catch (err) {
 			return Promise.reject(err);
 		}
+	}
+
+	/**
+	 * Download media to file path (Node.js environments only)
+	 * For Cloudflare Workers, use downloadMedia() to get ArrayBuffer instead
+	 *
+	 * @deprecated Use downloadMedia() for better compatibility
+	 */
+	async downloadMediaToPath(mediaUrl: string, pathToSaveFile: string) {
+		throw new Error("downloadMediaToPath is not supported in Cloudflare Workers. Use downloadMedia() to get ArrayBuffer instead.");
 	}
 	/*
 	 *
