@@ -1,230 +1,167 @@
-![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/MarcosNicolau/whatsapp-business-sdk/npm_publish.yml?branch=main)
-![Known Vulnerabilities](https://snyk.io/test/github/MarcosNicolau/whatsapp-business-sdk/badge.svg)
-![Codecov](https://img.shields.io/codecov/c/github/MarcosNicolau/whatsapp-business-sdk?token=G20JHIZMRW)
-![GitHub last commit](https://img.shields.io/github/last-commit/MarcosNicolau/whatsapp-business-sdk)
-![GitHub top language](https://img.shields.io/github/languages/top/MarcosNicolau/whatsapp-business-sdk)
-![npm bundle size](https://img.shields.io/bundlephobia/minzip/whatsapp-business)
-![npm](https://img.shields.io/npm/v/whatsapp-business)
-![GitHub](https://img.shields.io/github/license/MarcosNicolau/whatsapp-business-sdk)
+# WhatsApp Business SDK - Cloudflare Workers Compatible
 
-# WhatsApp Business API SDK
+This is a modified version of the WhatsApp Business SDK that has been optimized for Cloudflare Workers compatibility by removing Node.js-specific dependencies.
 
-Node.js connector for WhatsApp Business Cloud API, with TypeScript support.
+## Changes Made
 
-This project offers a solution to easily interact with WhatsApp Business Cloud API with Heavy integration testing with real API calls to support implementation stability. Built with Axios and no other extra dependency!
+### Removed Dependencies
+- **Express.js** - Removed webhook server functionality (Express-based)
+- **form-data** - Replaced with native Web API FormData
+- **fs (File System)** - Removed file system operations
+- **axios** - Replaced with native fetch API
 
-The connector is fully typed, tested and documented!
+### Modified Components
 
-## Installation
+#### 1. REST Client (`src/utils/restClient.ts`)
+- Replaced axios with native `fetch` API
+- Added proper error handling for Workers environment
+- Supports FormData uploads using Web APIs
 
-`npm install whatsapp-business`
+#### 2. WABA Client (`src/WABA_client.ts`)
+- **File Upload**: Now accepts `File` or `Blob` objects instead of file paths
+- **Media Download**: Returns `ArrayBuffer` instead of writing to file system
+- Added deprecated methods with helpful error messages for Node.js-specific functionality
 
-`yarn add whatsapp-business`
+#### 3. Webhook Functionality
+- **Removed**: All Express.js-based webhook handlers
+- **Reason**: Not needed for client-only usage in Workers
 
-## Documentation
+## Usage in Cloudflare Workers
 
-Most methods accept JS objects. These can be populated using parameters specified by [WhatsApp's API documentation](https://developers.facebook.com/docs/whatsapp/cloud-api/overview) or following the typescript schema.
-
-# Usage
-
-### Basic usage
-
-```typescript
-import { WABAClient, WABAErrorAPI } from "whatsapp-business";
-
-//You cant get it from the meta for developers app administration
-const client = new WABAClient({
-	accountId: "<YOUR_ACCOUNT_ID>",
-	apiToken: "<YOUR_API_TOKEN>",
-	phoneId: "<YOUR_BUSINESS_PHONE_ID>",
-});
-
-const foo = async () => {
-	try {
-		const res = await client.getBusinessPhoneNumbers();
-		console.log(res);
-	} catch (err) {
-		const error: WABAErrorAPI = err;
-		console.error(error.message);
-	}
-};
-
-foo();
-```
-
-### Sending messages
-
-You can send a text message
+### Basic Setup
 
 ```typescript
-const sendTextMessage = async (body: string, to: string) => {
-	try {
-		const res = await client.sendMessage({ to, type: "text", text: { body } });
-		console.log(res);
-	} catch (err) {
-		const error: WABAErrorAPI = err;
-		console.error(error.message);
-	}
+import { WABAClient } from 'whatsapp-business';
+
+export default {
+  async fetch(request: Request, env: any): Promise<Response> {
+    const client = new WABAClient({
+      apiToken: env.WHATSAPP_API_TOKEN,
+      phoneId: env.WHATSAPP_PHONE_ID,
+      accountId: env.WHATSAPP_ACCOUNT_ID,
+    });
+
+    // Your logic here
+  }
 };
 ```
 
-or an image
+### Sending Messages
 
 ```typescript
-const sendPictureMessage = async ({ link, caption }: MediaObject, to: string) => {
-	try {
-		const res = await client.sendMessage({ to, type: "image", image: { link, caption } });
-		console.log(res);
-	} catch (err) {
-		const error: WABAErrorAPI = err;
-		console.error(error.message);
-	}
-};
-
-sendPictureMessage(
-	{ link: "<url_link_to_your_image>", caption: "<image_description>" },
-	"<PHONE_NUMBER>"
-);
-```
-
-### Webhooks
-
-The webhook client will handle the subscription and setup for the webhooks. You must have an HTTPS connection and add the server URL in your application management.
-
-For more info, checks the docs [here](https://developers.facebook.com/docs/whatsapp/business-management-api/guides/set-up-webhooks).
-
-```typescript
-import { WebhookClient, WABAClient } from "./index";
-
-//The token and path must match the values you set on the application management
-const webhookClient = new WebhookClient({
-	token: "<YOUR_VALIDATION_TOKEN>",
-	path: "/whatsapp/webhook",
-	port: 8080,
-});
-
-const wabaClient = new WABAClient({
-	accountId: "<ACCOUNT_ID>",
-	phoneId: "<PHONE_ID>",
-	apiToken: "<API_TOKEN>",
-});
-
-//Starts a server and triggers the received functions based on the webhook event type
-webhookClient.initWebhook({
-	onStartListening: () => {
-		console.log("Server started listening");
-	},
-	onTextMessageReceived: async (payload, contact) => {
-		try {
-			const messageId = payload.id.toString();
-			const contactNumber = contact.wa_id;
-			//Mark message as read
-			await wabaClient.markMessageAsRead(messageId);
-			//React to message
-			await wabaClient.sendMessage({
-				to: contactNumber,
-				type: "reaction",
-				reaction: { message_id: messageId, emoji: "😄" },
-			});
-			//Respond to message
-			await wabaClient.sendMessage({
-				type: "text",
-				to: contactNumber,
-				text: { body: "Ok!" },
-				//This is optional, it enables reply-to feature
-				context: {
-					message_id: messageId,
-				},
-			});
-		} catch (err) {
-			console.log(err);
-		}
-	},
+// Send text message
+const response = await client.sendMessage({
+  to: "1234567890",
+  type: "text",
+  text: {
+    body: "Hello from Cloudflare Workers!"
+  }
 });
 ```
 
-You can also provide your own express app:
+### File Upload (Changed API)
 
+**Before (Node.js):**
 ```typescript
-import { WebhookClient } from "./index";
-import express from "express";
-
-const myApp = express();
-
-const webhookClient = new WebhookClient({
-	token: "<YOUR_VALIDATION_TOKEN>",
-	path: "/whatsapp/webhook",
-	expressApp: {
-		//Set to false if you want to initialize the server yourself
-		//Otherwise, it will start listening when firing initWebhook()
-		shouldStartListening: false,
-		app: myApp,
-	},
-});
-
-myApp.listen(8080, () => {
-	console.log("My server nows listens to whatsapp webhooks");
+// ❌ This won't work in Workers
+await client.uploadMedia({
+  file: "/path/to/file.jpg",
+  type: "image"
 });
 ```
 
-If you don't provide a express app the client will create a default app on its own, which you can later access:
-
+**After (Workers Compatible):**
 ```typescript
-import { WebhookClient } from "./index";
+// ✅ Use File or Blob objects
+const formData = await request.formData();
+const file = formData.get('file') as File;
 
-const webhookClient = new WebhookClient({
-	token: "<YOUR_VALIDATION_TOKEN>",
-	path: "/whatsapp/webhook",
-	port: 8080,
-});
-
-const app = webhookClient.expressApp.app;
-//Your configuration...
-app.set("trust proxy", true);
-
-webhookClient.initWebhook({
-	onStartListening: () => {
-		console.log("Server started listening");
-	},
+await client.uploadMedia({
+  file: file, // File object from FormData
+  type: "image"
 });
 ```
 
-## Support
+### Media Download (Changed API)
 
-| Cloud API                                     |
-| --------------------------------------------- |
-| <ul><li>- [x] Business profiles endpoints     |
-| <ul><li>- [x] Media endpoints                 |
-| <ul><li>- [x] Message endpoints               |
-| <ul><li>- [x] Phone Numbers endpoints         |
-| <ul><li>- [x] Registration endpoints          |
-| <ul><li>- [x] Two-Step-Verification endpoints |
+**Before (Node.js):**
+```typescript
+// ❌ This won't work in Workers
+await client.downloadMedia(mediaUrl, "/path/to/save/file.jpg");
+```
 
-| Webhooks                          |
-| --------------------------------- |
-| <ul><li>- [x] Cloud API           |
-| <ul><li>- [ ] Business Management |
+**After (Workers Compatible):**
+```typescript
+// ✅ Returns ArrayBuffer
+const mediaBuffer = await client.downloadMedia(mediaUrl);
 
-| Business Management API |
-| ----------------------- |
-| Currently working on    |
+// Return as response or process as needed
+return new Response(mediaBuffer, {
+  headers: {
+    'Content-Type': 'application/octet-stream'
+  }
+});
+```
 
-| Analytics API                  |
-| ------------------------------ |
-| Planning to add future support |
+## Environment Variables
 
-# Project
+Set these in your `wrangler.toml`:
 
-## Structure
+```toml
+[vars]
+WHATSAPP_API_TOKEN = "your_api_token"
+WHATSAPP_PHONE_ID = "your_phone_id"
+WHATSAPP_ACCOUNT_ID = "your_account_id"
+```
 
-This project uses typescript. Resources are stored in 2 key structures:
+## Available Methods
 
--   <b>src</b>: the whole connector written in typescript
--   <b>dist</b> the packed bundle of the project for use in nodejs environments (generated when running yarn run build).
--   <b>\_\_tests\_\_</b> all the tests for the connector
+All WhatsApp Business API methods are available:
 
-## Contribution and thanks
+### Business Profile
+- `getBusinessProfile()`
+- `updateBusinessProfile()`
 
-Contributions are encouraged, I will review any incoming pull requests.
+### Messages
+- `sendMessage()` - Send any type of message
+- `markMessageAsRead()`
 
-If you found this project interesting or useful, you would help so much by giving this project a star. Thank you!
+### Media
+- `uploadMedia()` - Upload media (File/Blob)
+- `getMedia()` - Get media URL
+- `deleteMedia()` - Delete media
+- `downloadMedia()` - Download as ArrayBuffer
+
+### Phone Numbers
+- `getBusinessPhoneNumbers()`
+- `getSingleBusinessPhoneNumber()`
+- `updateIdentityCheckState()`
+- `requestPhoneNumberVerificationCode()`
+- `verifyPhoneNumberCode()`
+- `registerPhone()`
+- `deregisterPhone()`
+- `setupTwoStepAuth()`
+
+### Health
+- `getHealthStatus()`
+
+## Migration Notes
+
+If you're migrating from the original SDK:
+
+1. **File Uploads**: Change from file paths to File/Blob objects
+2. **Media Downloads**: Handle ArrayBuffer instead of file writes
+3. **Webhooks**: Implement your own webhook handling in Workers if needed
+4. **Error Handling**: Errors now use standard fetch error patterns
+
+## Example Worker
+
+See `examples/cloudflare-worker-example.ts` for a complete working example.
+
+## Compatibility
+
+- ✅ Cloudflare Workers
+- ✅ Web browsers
+- ✅ Deno
+- ✅ Modern Node.js (with polyfills)
+- ❌ Legacy Node.js environments (use original SDK)
