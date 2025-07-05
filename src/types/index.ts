@@ -6,4 +6,5 @@ export * from "./messages";
 export * from "./phoneNumbers";
 export * from "./registration";
 export * from "./response";
+export * from "./webhooks";
 

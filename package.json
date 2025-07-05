@@ -1,7 +1,7 @@
 {
 	"name": "whatsapp-business-serverless",
 	"author": "famasya",
-	"version": "1.0.0",
+	"version": "1.0.1",
 	"description": "Connector for the WhatsApp Business APIs with TypeScript support. Serverless version.",
 	"license": "MIT",
 	"licenses": [
